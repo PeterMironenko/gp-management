@@ -18,3 +18,19 @@ class PatientSchema(Schema):
     created_at = fields.DateTime(dump_only=True)
     updated_at = fields.DateTime(dump_only=True)
 
+
+class PatientUpdateSchema(Schema):
+    staff_id = fields.Int(required=False, allow_none=True)
+    first_name = fields.Str(required=False)
+    last_name = fields.Str(required=False)
+    date_of_birth = fields.Date(required=False)
+    landline_phone = fields.Str(required=False)
+    mobile_phone = fields.Str(required=False)
+    email = fields.Str(required=False)
+    address_street = fields.Str(required=False)
+    address_city = fields.Str(required=False)
+    address_county = fields.Str(required=False)
+    address_postcode = fields.Str(required=False)
+    emergency_contact_name = fields.Str(required=False)
+    emergency_contact_phone = fields.Str(required=False)
+

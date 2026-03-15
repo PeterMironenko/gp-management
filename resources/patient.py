@@ -7,7 +7,7 @@ from flask_smorest import Blueprint, abort
 from sqlalchemy.exc import SQLAlchemyError
 
 from models import db, PatientModel
-from schemas import PatientSchema
+from schemas import PatientSchema, PatientUpdateSchema
 
 blp = Blueprint("Patients", __name__, description="Operations on patients")
 
@@ -30,26 +30,36 @@ class Patient(MethodView):
         db.session.commit()
         return {"message": "Patient deleted."}, HTTPStatus.OK
 
-    @blp.arguments(PatientSchema)
+    @blp.arguments(PatientUpdateSchema)
     @blp.response(HTTPStatus.OK, PatientSchema)
     def put(self, patient_data, patient_id):
         patient = db.session.get(PatientModel, patient_id)
         if patient:
-            patient.staff_id = patient_data["staff_id"]
-            patient.first_name = patient_data["first_name"]
-            patient.last_name = patient_data["last_name"]
-            patient.date_of_birth = patient_data["date_of_birth"]
-            patient.landline_phone = patient_data["landline_phone"]
-            patient.mobile_phone = patient_data["mobile_phone"]
-            patient.email = patient_data["email"]
-            patient.address_street = patient_data["address_street"]
-            patient.address_city = patient_data["address_city"]
-            patient.address_county = patient_data["address_county"]
-            patient.address_postcode = patient_data["address_postcode"]
-            patient.emergency_contact_name = patient_data["emergency_contact_name"]
-            patient.emergency_contact_phone = patient_data["emergency_contact_phone"]
+            for key, value in patient_data.items():
+                setattr(patient, key, value)
             patient.updated_at = datetime.now()
         else:
+            required_fields = [
+                "staff_id",
+                "first_name",
+                "last_name",
+                "date_of_birth",
+                "landline_phone",
+                "mobile_phone",
+                "email",
+                "address_street",
+                "address_city",
+                "address_county",
+                "address_postcode",
+                "emergency_contact_name",
+                "emergency_contact_phone",
+            ]
+            missing_fields = [field for field in required_fields if field not in patient_data]
+            if missing_fields:
+                abort(
+                    HTTPStatus.BAD_REQUEST,
+                    message=f"Missing required fields for new patient: {', '.join(missing_fields)}",
+                )
             now = datetime.now()
             patient = PatientModel(id=patient_id, created_at=now, updated_at=now, **patient_data)
 

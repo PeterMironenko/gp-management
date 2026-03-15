@@ -4,6 +4,7 @@ import argparse
 import random
 from datetime import date, datetime, timedelta
 
+from sqlalchemy import text
 from werkzeug.security import generate_password_hash
 
 from app import app, db, ensure_default_admin_user
@@ -54,11 +55,11 @@ CITIES = ["London", "Manchester", "Birmingham", "Leeds", "Bristol"]
 COUNTIES = ["Greater London", "Greater Manchester", "West Midlands", "West Yorkshire", "Bristol"]
 
 DRUG_CATALOG = [
-    ("Paracetamol", "Acetaminophen", "Tablet", "500mg", "MediCore"),
-    ("Ibuprofen", "Ibuprofen", "Tablet", "400mg", "PharmaWell"),
-    ("Amoxicillin", "Amoxicillin", "Capsule", "500mg", "BioHealth"),
-    ("Metformin", "Metformin", "Tablet", "850mg", "GlucoLab"),
-    ("Atorvastatin", "Atorvastatin", "Tablet", "20mg", "CardioRx"),
+    ("Paracetamol", "Acetaminophen", "Tablet", "500mg", "MediCore", False),
+    ("Ibuprofen", "Ibuprofen", "Tablet", "400mg", "PharmaWell", False),
+    ("Amoxicillin", "Amoxicillin", "Capsule", "500mg", "BioHealth", True),
+    ("Metformin", "Metformin", "Tablet", "850mg", "GlucoLab", False),
+    ("Atorvastatin", "Atorvastatin", "Tablet", "20mg", "CardioRx",True),
 ]
 
 LAB_TEST_TYPES = ["Blood", "Urine", "Imaging", "Biochemistry"]
@@ -89,11 +90,57 @@ def maybe_reset_data(reset: bool) -> None:
     if not reset:
         return
 
-    # Rebuild schema so model constraint changes (e.g. patient.staff_id non-unique)
+    # Rebuild schema so model constraint changes (e.g. patient.staff_id nullable)
     # are applied in SQLite without requiring a manual migration.
     db.drop_all()
     db.create_all()
     ensure_default_admin_user()
+
+
+def migrate_legacy_drugs_table_if_needed() -> None:
+    if db.engine.url.get_backend_name() != "sqlite":
+        return
+
+    columns = [
+        row[1]
+        for row in db.session.execute(text("PRAGMA table_info(drugs)"))
+    ]
+    if "patient_id" not in columns:
+        return
+
+    db.session.execute(text("PRAGMA foreign_keys=OFF"))
+    db.session.execute(text("BEGIN TRANSACTION"))
+    db.session.execute(text("ALTER TABLE drugs RENAME TO drugs_old"))
+    db.session.execute(
+        text(
+            """
+            CREATE TABLE drugs (
+                id INTEGER NOT NULL,
+                drug_name VARCHAR(100) NOT NULL,
+                generic_name VARCHAR(100),
+                form VARCHAR(50),
+                strength VARCHAR(50),
+                manufacturer VARCHAR(100),
+                description TEXT,
+                is_approval_required BOOLEAN NOT NULL DEFAULT 1,
+                PRIMARY KEY (id)
+            )
+            """
+        )
+    )
+    db.session.execute(
+        text(
+            """
+            INSERT INTO drugs (id, drug_name, generic_name, form, strength, manufacturer, description)
+            SELECT id, drug_name, generic_name, form, strength, manufacturer, description
+            FROM drugs_old
+            """
+        )
+    )
+    db.session.execute(text("DROP TABLE drugs_old"))
+    db.session.execute(text("COMMIT"))
+    db.session.execute(text("PRAGMA foreign_keys=ON"))
+    db.session.commit()
 
 
 def ensure_positions_seeded() -> list[str]:
@@ -111,15 +158,15 @@ def create_related_medical_data(patient: PatientModel, staff: StaffModel, seed_i
 
     drug_ids: list[int] = []
     for _ in range(random.randint(1, 3)):
-        drug_name, generic_name, form, strength, manufacturer = random.choice(DRUG_CATALOG)
+        drug_name, generic_name, form, strength, manufacturer, is_approval_required = random.choice(DRUG_CATALOG)
         drug = DrugModel(
-            patient_id=patient.id,
             drug_name=drug_name,
             generic_name=generic_name,
             form=form,
             strength=strength,
             manufacturer=manufacturer,
             description=f"{drug_name} prescribed for patient care.",
+            is_approval_required=is_approval_required
         )
         db.session.add(drug)
         db.session.flush()
@@ -151,8 +198,10 @@ def create_related_medical_data(patient: PatientModel, staff: StaffModel, seed_i
     for med_offset in range(random.randint(1, 2)):
         start = date.today() - timedelta(days=random.randint(0, 120))
         end = start + timedelta(days=random.randint(3, 90) + med_offset)
+        is_approved = random.choice([True, False])
         medication = MedicationModel(
             patient_id=patient.id,
+            staff_id=staff.id,
             drug_id=random.choice(drug_ids) if drug_ids else None,
             dosage=random.choice(["1 tablet", "2 tablets", "5 ml", "10 mg"]),
             frequency=random.choice(["Once daily", "Twice daily", "Every 8 hours", "As needed"]),
@@ -160,6 +209,7 @@ def create_related_medical_data(patient: PatientModel, staff: StaffModel, seed_i
             start_date=start,
             end_date=end,
             notes=random.choice(["Take with food.", "Avoid alcohol.", "Short course.", None]),
+            is_approved=is_approved,
         )
         db.session.add(medication)
 
@@ -198,13 +248,14 @@ def create_appointments_for_patient(patient: PatientModel, staff: StaffModel) ->
         db.session.add(appointment)
 
 
-def create_staff_and_patients(staff_count: int, patients_per_staff: int) -> None:
+def create_staff_and_patients(staff_count: int, patients_per_staff: int, unassigned_patients: int = 0) -> None:
     positions = ensure_positions_seeded()
 
     base_user_index = (db.session.query(db.func.max(UserModel.id)).scalar() or 1) + 1
     base_patient_index = (db.session.query(db.func.max(PatientModel.id)).scalar() or 0) + 1
 
     patient_counter = base_patient_index
+    created_staff: list[StaffModel] = []
 
     for staff_offset in range(staff_count):
         user_index = base_user_index + staff_offset
@@ -229,6 +280,7 @@ def create_staff_and_patients(staff_count: int, patients_per_staff: int) -> None
         )
         db.session.add(staff)
         db.session.flush()
+        created_staff.append(staff)
 
         for _ in range(patients_per_staff):
             patient_first = random.choice(FIRST_NAMES)
@@ -258,6 +310,38 @@ def create_staff_and_patients(staff_count: int, patients_per_staff: int) -> None
             create_appointments_for_patient(patient, staff)
             patient_counter += 1
 
+    for _ in range(unassigned_patients):
+        patient_first = random.choice(FIRST_NAMES)
+        patient_last = random.choice(LAST_NAMES)
+        now = datetime.now()
+
+        patient = PatientModel(
+            staff_id=None,
+            first_name=patient_first,
+            last_name=patient_last,
+            date_of_birth=random_dob(1, 95),
+            landline_phone=unique_phone("0208", patient_counter, 7),
+            mobile_phone=unique_phone("07999", patient_counter, 6),
+            email=f"patient{patient_counter:05d}@example.com",
+            address_street=f"{random.randint(1, 300)} High Street",
+            address_city=random.choice(CITIES),
+            address_county=random.choice(COUNTIES),
+            address_postcode=f"AB{random.randint(10,99)} {random.randint(1,9)}CD",
+            emergency_contact_name=f"{random.choice(FIRST_NAMES)} {random.choice(LAST_NAMES)}",
+            emergency_contact_phone=unique_phone("07000", patient_counter, 6),
+            created_at=now,
+            updated_at=now,
+        )
+        db.session.add(patient)
+        db.session.flush()
+
+        if created_staff:
+            seeded_staff = random.choice(created_staff)
+            create_related_medical_data(patient, seeded_staff, patient_counter)
+            create_appointments_for_patient(patient, seeded_staff)
+
+        patient_counter += 1
+
     db.session.commit()
 
 
@@ -275,15 +359,24 @@ def main() -> None:
         action="store_true",
         help="Delete existing seeded staff/patient/user data (keeps admin user id=1) before seeding",
     )
+    parser.add_argument(
+        "--unassigned-patients",
+        type=int,
+        default=5,
+        help="Number of extra patients to create without assigned staff_id (default: 5)",
+    )
     args = parser.parse_args()
 
     with app.app_context():
         db.create_all()
         maybe_reset_data(args.reset)
-        create_staff_and_patients(args.staff, args.patients_per_staff)
+        migrate_legacy_drugs_table_if_needed()
+        create_staff_and_patients(args.staff, args.patients_per_staff, args.unassigned_patients)
 
         staff_total = StaffModel.query.count()
         patient_total = PatientModel.query.count()
+        assigned_patient_total = PatientModel.query.filter(PatientModel.staff_id.isnot(None)).count()
+        unassigned_patient_total = PatientModel.query.filter(PatientModel.staff_id.is_(None)).count()
         drug_total = DrugModel.query.count()
         labrecord_total = LabRecordModel.query.count()
         medicalinformation_total = MedicalInformationModel.query.count()
@@ -292,6 +385,7 @@ def main() -> None:
         print(
             "Seeding complete: "
             f"staff={staff_total}, patients={patient_total}, "
+            f"assigned_patients={assigned_patient_total}, unassigned_patients={unassigned_patient_total}, "
             f"drugs={drug_total}, labrecords={labrecord_total}, "
             f"medicalinformation={medicalinformation_total}, medications={medication_total}, "
             f"appointments={appointment_total}"

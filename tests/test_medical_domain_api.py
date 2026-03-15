@@ -50,17 +50,17 @@ def _seed_patient(email: str = "patient.api@example.com") -> tuple[int, int]:
 
 
 def test_drug_crud_endpoints(client):
-    with app.app_context():
-        patient_id, _ = _seed_patient(email="drug.patient@example.com")
+    #with app.app_context():
+    #    _seed_patient(email="drug.patient@example.com")
 
     create_payload = {
-        "patient_id": patient_id,
         "drug_name": "Amoxicillin",
         "generic_name": "Amoxicillin",
         "form": "Capsule",
         "strength": "500mg",
         "manufacturer": "ACME Pharma",
         "description": "Antibiotic",
+        "is_approval_required": True
     }
     create_resp = client.post("/drug", json=create_payload)
     assert create_resp.status_code == 201
@@ -71,11 +71,10 @@ def test_drug_crud_endpoints(client):
     assert get_resp.status_code == 200
     assert get_resp.get_json()["drug_name"] == "Amoxicillin"
 
-    list_resp = client.get(f"/drug?patient_id={patient_id}")
+    list_resp = client.get("/drug")
     assert list_resp.status_code == 200
     listed = list_resp.get_json()
-    assert len(listed) == 1
-    assert listed[0]["id"] == drug_id
+    assert any(item["id"] == drug_id for item in listed)
 
     update_payload = {
         **create_payload,

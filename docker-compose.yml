@@ -7,7 +7,7 @@ services:
     container_name: container-store-app-flask
     restart: on-failure
     ports:
-      - "5555:5555"
+      - "5000:5000"
     volumes:
       - ./:/app
     network_mode: bridge

@@ -1,4 +1,3 @@
-from flask import request
 from flask.views import MethodView
 from flask_smorest import Blueprint, abort
 from sqlalchemy.exc import SQLAlchemyError
@@ -14,11 +13,7 @@ blp = Blueprint("Drugs", __name__, description="Operations on drugs")
 class DrugList(MethodView):
     @blp.response(200, DrugSchema(many=True))
     def get(self):
-        patient_id = request.args.get("patient_id", type=int)
-        query = DrugModel.query
-        if patient_id is not None:
-            query = query.filter_by(patient_id=patient_id)
-        return query.order_by(DrugModel.id.asc()).all()
+        return DrugModel.query.order_by(DrugModel.id.asc()).all()
 
     @blp.arguments(DrugSchema)
     @blp.response(201, DrugSchema)
@@ -49,13 +44,13 @@ class Drug(MethodView):
         if drug is None:
             abort(404, message="Drug not found")
 
-        drug.patient_id = drug_data["patient_id"]
         drug.drug_name = drug_data["drug_name"]
         drug.generic_name = drug_data.get("generic_name")
         drug.form = drug_data.get("form")
         drug.strength = drug_data.get("strength")
         drug.manufacturer = drug_data.get("manufacturer")
         drug.description = drug_data.get("description")
+        drug.is_approval_required = drug_data.get("is_approval_required", drug.is_approval_required)
 
         try:
             db.session.add(drug)

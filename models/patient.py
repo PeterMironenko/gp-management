@@ -5,7 +5,7 @@ class PatientModel(db.Model):
     __tablename__ = "patients"
 
     id = db.Column(db.Integer, primary_key=True)
-    staff_id = db.Column(db.Integer, db.ForeignKey("staff.id"), unique=False, nullable=False)
+    staff_id = db.Column(db.Integer, db.ForeignKey("staff.id"), unique=False, nullable=True)
     first_name = db.Column(db.String(30), unique=False, nullable=False)
     last_name = db.Column(db.String(30), unique=False, nullable=False)
     date_of_birth = db.Column(db.Date, unique=False, nullable=False)
@@ -21,7 +21,6 @@ class PatientModel(db.Model):
     created_at = db.Column(db.DateTime, unique=False, nullable=False)
     updated_at = db.Column(db.DateTime, unique=False, nullable=False)
     appointments = db.relationship("AppointmentModel", back_populates="patient", cascade="all, delete-orphan")
-    drugs = db.relationship("DrugModel", back_populates="patient", cascade="all, delete-orphan")
     lab_records = db.relationship("LabRecordModel", back_populates="patient", cascade="all, delete-orphan")
     medical_information = db.relationship("MedicalInformationModel", back_populates="patient", uselist=False, cascade="all, delete-orphan")
     medications = db.relationship("MedicationModel", back_populates="patient", cascade="all, delete-orphan")

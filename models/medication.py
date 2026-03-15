@@ -6,6 +6,7 @@ class MedicationModel(db.Model):
 
     id = db.Column(db.Integer, primary_key=True)
     patient_id = db.Column(db.Integer, db.ForeignKey("patients.id"), unique=False, nullable=False)
+    staff_id = db.Column(db.Integer, db.ForeignKey("staff.id"), unique=False, nullable=True)
     drug_id = db.Column(db.Integer, unique=False, nullable=True)
     dosage = db.Column(db.String(255), unique=False, nullable=False)
     frequency = db.Column(db.String(255), unique=False, nullable=False)
@@ -13,6 +14,7 @@ class MedicationModel(db.Model):
     start_date = db.Column(db.Date, unique=False, nullable=False)
     end_date = db.Column(db.Date, unique=False, nullable=True)
     notes = db.Column(db.Text, unique=False, nullable=True)
+    is_approved = db.Column(db.Boolean, unique=False, nullable=True, default=False)
 
     patient = db.relationship("PatientModel", back_populates="medications")
 
@@ -20,13 +22,15 @@ class MedicationModel(db.Model):
         return {
             'id': self.id,
             'patient_id': self.patient_id,
+            'staff_id': self.staff_id,
             'drug_id': self.drug_id,
             'dosage': self.dosage,
             'frequency': self.frequency,
             'route': self.route,
             'start_date': self.start_date,
             'end_date': self.end_date,
-            'notes': self.notes
+            'notes': self.notes,
+            'is_approved': self.is_approved,
         }
 
     @classmethod

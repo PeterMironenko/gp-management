@@ -50,6 +50,7 @@ class Medication(MethodView):
             abort(404, message="Medication not found")
 
         medication.patient_id = medication_data["patient_id"]
+        medication.staff_id = medication_data.get("staff_id")
         medication.drug_id = medication_data.get("drug_id")
         medication.dosage = medication_data["dosage"]
         medication.frequency = medication_data["frequency"]
@@ -57,6 +58,7 @@ class Medication(MethodView):
         medication.start_date = medication_data["start_date"]
         medication.end_date = medication_data.get("end_date")
         medication.notes = medication_data.get("notes")
+        medication.is_approved = medication_data.get("is_approved", medication.is_approved)
 
         try:
             db.session.add(medication)
