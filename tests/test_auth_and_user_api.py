@@ -168,8 +168,37 @@ def test_non_admin_user_cannot_access_protected_user_api(client):
     list_resp = client.get("/user", headers=auth_header(member_access_token))
     assert list_resp.status_code == 403
 
+    me_resp = client.get("/me", headers=auth_header(member_access_token))
+    assert me_resp.status_code == 200
+    me_data = me_resp.get_json()
+    assert me_data["username"] == "member"
+
     logout_resp = client.post("/logout", headers=auth_header(member_access_token))
     assert logout_resp.status_code == 403
 
     refresh_resp = client.post("/refresh", headers=auth_header(member_refresh_token))
     assert refresh_resp.status_code == 403
+
+
+def test_register_rejects_duplicate_staff_mobile_phone(client):
+    first_resp = client.post(
+        "/register",
+        json={
+            "username": "staff_dup_1",
+            "password": "secret",
+            "mobile_phone": "07825255956",
+        },
+    )
+    assert first_resp.status_code == 201
+
+    second_resp = client.post(
+        "/register",
+        json={
+            "username": "staff_dup_2",
+            "password": "secret",
+            "mobile_phone": "07825255956",
+        },
+    )
+    assert second_resp.status_code == 400
+    data = second_resp.get_json()
+    assert "Mobile phone already exists" in data["message"]

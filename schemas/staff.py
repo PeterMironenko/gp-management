@@ -1,16 +1,13 @@
 from marshmallow import Schema, fields
 
-class PlainItemSchema(Schema):
+
+class StaffSchema(Schema):
     id = fields.Int(dump_only=True)
-    name = fields.Str(required=True)
-    price = fields.Float(required=True)
-
-class ItemSchema(PlainItemSchema):
-    store_id = fields.Int(required=True, load_only=True)
-    # Use lazy string reference to avoid circular import with store_schemas
-    store = fields.Nested("PlainStoreSchema", dump_only=True)
-
-
-class ItemUpdateSchema(Schema):
-    name = fields.Str()
-    price = fields.Float()
+    first_name = fields.Str(required=True)
+    last_name = fields.Str(required=True)
+    date_of_birth = fields.Date(required=True)
+    work_phone = fields.Str(required=True)
+    mobile_phone = fields.Str(required=True)
+    work_email = fields.Str(required=True)
+    position = fields.Str(required=True)
+    user_id = fields.Int(dump_only=True)

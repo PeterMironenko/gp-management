@@ -15,3 +15,6 @@ class StaffModel(db.Model):
     user_id = db.Column(db.Integer, db.ForeignKey("users.id"), unique=True, nullable=False)
 
     user = db.relationship("UserModel", back_populates="staff")
+    patients = db.relationship("PatientModel", back_populates="staff", cascade="all, delete-orphan")
+    appointments = db.relationship("AppointmentModel", back_populates="staff", cascade="all, delete-orphan")
+    lab_records = db.relationship("LabRecordModel", back_populates="staff", cascade="all, delete-orphan")

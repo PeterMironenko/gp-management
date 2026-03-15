@@ -2,6 +2,7 @@ from marshmallow import Schema, fields
 
 class PatientSchema(Schema):
     id = fields.Int(dump_only=True)
+    staff_id = fields.Int(required=True)
     first_name = fields.Str(required=True)
     last_name = fields.Str(required=True)
     date_of_birth = fields.Date(required=True)

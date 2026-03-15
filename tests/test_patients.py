@@ -1,14 +1,36 @@
 from datetime import date, datetime
 
 from app import app, db
-from models import PatientModel
+from models import PatientModel, StaffModel, UserModel
+
+
+def _seed_staff(username: str = "staff_user") -> StaffModel:
+    user = UserModel(username=username, password="secret")
+    db.session.add(user)
+    db.session.flush()
+
+    staff = StaffModel(
+        first_name="Staff",
+        last_name="Member",
+        date_of_birth=date(1980, 1, 1),
+        work_phone=f"0207{user.id:07d}",
+        mobile_phone=f"07123{user.id:06d}",
+        work_email=f"{username}@clinic.local",
+        position="doctor",
+        user_id=user.id,
+    )
+    db.session.add(staff)
+    db.session.flush()
+    return staff
 
 
 def test_patients_table_insert_and_query(client):
     now = datetime.now()
 
     with app.app_context():
+        staff = _seed_staff(username="staff_for_patient_insert")
         patient = PatientModel(
+            staff_id=staff.id,
             first_name="John",
             last_name="Doe",
             date_of_birth=date(1990, 1, 1),
@@ -21,7 +43,7 @@ def test_patients_table_insert_and_query(client):
             address_postcode="SW1A 1AA",
             emergency_contact_name="Jane Doe",
             emergency_contact_phone="07123450000",
-            crreated_at=now,
+            created_at=now,
             updated_at=now,
         )
 
@@ -38,7 +60,9 @@ def test_patients_table_insert_and_query(client):
 
 def _seed_patient(email: str = "john.doe@example.com") -> PatientModel:
     now = datetime.now()
+    staff = _seed_staff(username=f"staff_{email.split('@')[0]}")
     patient = PatientModel(
+        staff_id=staff.id,
         first_name="John",
         last_name="Doe",
         date_of_birth=date(1990, 1, 1),
@@ -51,7 +75,7 @@ def _seed_patient(email: str = "john.doe@example.com") -> PatientModel:
         address_postcode="SW1A 1AA",
         emergency_contact_name="Jane Doe",
         emergency_contact_phone="07123450000",
-        crreated_at=now,
+        created_at=now,
         updated_at=now,
     )
     db.session.add(patient)
@@ -84,6 +108,7 @@ def test_put_patient_by_id_updates_existing_patient(client):
         patient_id = patient.id
 
     payload = {
+        "staff_id": patient.staff_id,
         "first_name": "Johnny",
         "last_name": "Doe",
         "date_of_birth": "1990-01-01",

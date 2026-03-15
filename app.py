@@ -4,12 +4,19 @@ import secrets
 from flask import Flask, jsonify, request
 from flask_smorest import Api
 from flask_jwt_extended import JWTManager
+from passlib.hash import pbkdf2_sha256
 
-from models import db
+from models import db, UserModel, PositionModel
 from blocklist import BLOCKLIST
 
 from resources.user import blp as UserBlueprint
 from resources.patient import blp as PatientBlueprint
+from resources.position import blp as PositionBlueprint
+from resources.appointment import blp as AppointmentBlueprint
+from resources.drug import blp as DrugBlueprint
+from resources.labrecord import blp as LabRecordBlueprint
+from resources.medicalinformation import blp as MedicalInformationBlueprint
+from resources.medication import blp as MedicationBlueprint
 
 
 app = Flask(__name__)
@@ -115,11 +122,40 @@ def revoked_token_callback(jwt_header, jwt_payload):
 # JWT configuration ends
 
 
+def ensure_default_admin_user() -> None:
+    admin_user = db.session.get(UserModel, 1)
+    if admin_user is not None:
+        return
+
+    admin_user = UserModel(id=1, username="admin", password=pbkdf2_sha256.hash("pass1234"))
+    db.session.add(admin_user)
+    db.session.commit()
+
+
+def ensure_default_positions() -> None:
+    allowed_positions = ["doctor", "nurse", "physician", "paramedic"]
+    existing_positions = {row.position for row in PositionModel.query.all()}
+
+    for position in allowed_positions:
+        if position not in existing_positions:
+            db.session.add(PositionModel(position=position))
+
+    db.session.commit()
+
+
 with app.app_context():
     import models  # noqa: F401
 
     db.create_all()
+    ensure_default_positions()
+    ensure_default_admin_user()
 
 
 api.register_blueprint(UserBlueprint)
 api.register_blueprint(PatientBlueprint)
+api.register_blueprint(PositionBlueprint)
+api.register_blueprint(AppointmentBlueprint)
+api.register_blueprint(DrugBlueprint)
+api.register_blueprint(LabRecordBlueprint)
+api.register_blueprint(MedicalInformationBlueprint)
+api.register_blueprint(MedicationBlueprint)

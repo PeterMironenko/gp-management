@@ -1,5 +1,7 @@
 from http import HTTPStatus
+from datetime import datetime
 
+from flask import request
 from flask.views import MethodView
 from flask_smorest import Blueprint, abort
 from sqlalchemy.exc import SQLAlchemyError
@@ -33,6 +35,7 @@ class Patient(MethodView):
     def put(self, patient_data, patient_id):
         patient = db.session.get(PatientModel, patient_id)
         if patient:
+            patient.staff_id = patient_data["staff_id"]
             patient.first_name = patient_data["first_name"]
             patient.last_name = patient_data["last_name"]
             patient.date_of_birth = patient_data["date_of_birth"]
@@ -45,8 +48,10 @@ class Patient(MethodView):
             patient.address_postcode = patient_data["address_postcode"]
             patient.emergency_contact_name = patient_data["emergency_contact_name"]
             patient.emergency_contact_phone = patient_data["emergency_contact_phone"]
+            patient.updated_at = datetime.now()
         else:
-            patient = PatientModel(id=patient_id, **patient_data)
+            now = datetime.now()
+            patient = PatientModel(id=patient_id, created_at=now, updated_at=now, **patient_data)
 
         db.session.add(patient)
         db.session.commit()
@@ -58,12 +63,16 @@ class Patient(MethodView):
 class PatientList(MethodView):
     @blp.response(HTTPStatus.OK, PatientSchema(many=True))
     def get(self):
+        staff_id = request.args.get("staff_id", type=int)
+        if staff_id is not None:
+            return PatientModel.query.filter_by(staff_id=staff_id).all()
         return PatientModel.query.all()
 
     @blp.arguments(PatientSchema)
     @blp.response(HTTPStatus.CREATED, PatientSchema)
     def post(self, patient_data):
-        patient = PatientModel(**patient_data)
+        now = datetime.now()
+        patient = PatientModel(created_at=now, updated_at=now, **patient_data)
 
         try:
             db.session.add(patient)
