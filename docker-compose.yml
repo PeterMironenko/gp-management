@@ -1,0 +1,13 @@
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile 
+    image: simple-store-app-flask:latest
+    container_name: container-store-app-flask
+    restart: on-failure
+    ports:
+      - "5000:5000"
+    volumes:
+      - ./:/app
+    network_mode: bridge
