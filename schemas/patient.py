@@ -1,6 +1,6 @@
 from marshmallow import Schema, fields
 
-class PlainPatientSchema(Schema):
+class PatientSchema(Schema):
     id = fields.Int(dump_only=True)
     first_name = fields.Str(required=True)
     last_name = fields.Str(required=True)
@@ -16,15 +16,4 @@ class PlainPatientSchema(Schema):
     emergency_contact_phone = fields.Str(required=True)
     created_at = fields.DateTime(dump_only=True)
     updated_at = fields.DateTime(dump_only=True)
-    username = fields.Str(required=True, load_only=True)
-    password = fields.Str(required=True, load_only=True)
 
-
-class PatientSchema(PlainPatientSchema):
-    store_id = fields.Int(required=True, load_only=True)
-    # Use lazy string reference to avoid circular import with store_schemas
-    store = fields.Nested("PlainStoreSchema", dump_only=True)
-
-class PatientUpdateSchema(Schema):
-    name = fields.Str()
-    price = fields.Float()

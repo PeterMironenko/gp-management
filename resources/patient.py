@@ -4,78 +4,71 @@ from flask.views import MethodView
 from flask_smorest import Blueprint, abort
 from sqlalchemy.exc import SQLAlchemyError
 
-from models import db, ItemModel
-from schemas import ItemSchema, ItemUpdateSchema
+from models import db, PatientModel
+from schemas import PatientSchema
 
-blp = Blueprint("Items", __name__, description="Operations on items")
+blp = Blueprint("Patients", __name__, description="Operations on patients")
 
 
-@blp.route("/item/<string:item_id>")
-class Item(MethodView):
-    @blp.response(HTTPStatus.OK, ItemSchema)
-    def get(self, item_id):
-        try:
-            item_pk = int(item_id)
-        except ValueError:
-            abort(HTTPStatus.NOT_FOUND, message="Item not found")
+@blp.route("/patient/<int:patient_id>")
+class Patient(MethodView):
+    @blp.response(HTTPStatus.OK, PatientSchema)
+    def get(self, patient_id):
+        patient = db.session.get(PatientModel, patient_id)
+        if patient is None:
+            abort(HTTPStatus.NOT_FOUND, message="Patient not found")
+        return patient
 
-        item = db.session.get(ItemModel, item_pk)
-        if item is None:
-            abort(HTTPStatus.NOT_FOUND, message="Item not found")
+    def delete(self, patient_id):
+        patient = db.session.get(PatientModel, patient_id)
+        if patient is None:
+            abort(HTTPStatus.NOT_FOUND, message="Patient not found")
 
-        return item
-
-    def delete(self, item_id):
-        try:
-            item_pk = int(item_id)
-        except ValueError:
-            abort(HTTPStatus.NOT_FOUND, message="Item not found")
-
-        item = db.session.get(ItemModel, item_pk)
-        if item is None:
-            abort(HTTPStatus.NOT_FOUND, message="Item not found")
-
-        db.session.delete(item)
+        db.session.delete(patient)
         db.session.commit()
-        return {"message": "Item deleted."}, HTTPStatus.OK
+        return {"message": "Patient deleted."}, HTTPStatus.OK
 
-    @blp.arguments(ItemUpdateSchema)
-    @blp.response(HTTPStatus.OK, ItemSchema)
-    def put(self, item_data, item_id):
-        try:
-            item_pk = int(item_id)
-        except ValueError:
-            abort(HTTPStatus.NOT_FOUND, message="Item not found")
-
-        item = db.session.get(ItemModel, item_pk)
-
-        if item:
-            item.price = item_data["price"]
-            item.name = item_data["name"]
+    @blp.arguments(PatientSchema)
+    @blp.response(HTTPStatus.OK, PatientSchema)
+    def put(self, patient_data, patient_id):
+        patient = db.session.get(PatientModel, patient_id)
+        if patient:
+            patient.first_name = patient_data["first_name"]
+            patient.last_name = patient_data["last_name"]
+            patient.date_of_birth = patient_data["date_of_birth"]
+            patient.landline_phone = patient_data["landline_phone"]
+            patient.mobile_phone = patient_data["mobile_phone"]
+            patient.email = patient_data["email"]
+            patient.address_street = patient_data["address_street"]
+            patient.address_city = patient_data["address_city"]
+            patient.address_county = patient_data["address_county"]
+            patient.address_postcode = patient_data["address_postcode"]
+            patient.emergency_contact_name = patient_data["emergency_contact_name"]
+            patient.emergency_contact_phone = patient_data["emergency_contact_phone"]
         else:
-            item = ItemModel(id=item_pk, **item_data)
+            patient = PatientModel(id=patient_id, **patient_data)
 
-        db.session.add(item)
+        db.session.add(patient)
         db.session.commit()
 
-        return item
+        return patient
 
 
-@blp.route("/item")
-class ItemList(MethodView):
-    @blp.response(HTTPStatus.OK, ItemSchema(many=True))
+@blp.route("/patient")
+class PatientList(MethodView):
+    @blp.response(HTTPStatus.OK, PatientSchema(many=True))
     def get(self):
-        return ItemModel.query.all()
+        return PatientModel.query.all()
 
-    @blp.arguments(ItemSchema)
-    @blp.response(HTTPStatus.CREATED, ItemSchema)
-    def post(self, item_data):
-        item = ItemModel(**item_data)
+    @blp.arguments(PatientSchema)
+    @blp.response(HTTPStatus.CREATED, PatientSchema)
+    def post(self, patient_data):
+        patient = PatientModel(**patient_data)
 
         try:
-            db.session.add(item)
+            db.session.add(patient)
             db.session.commit()
         except SQLAlchemyError:
-            abort(HTTPStatus.INTERNAL_SERVER_ERROR, message="An error occurred while inserting the item.")
+            abort(HTTPStatus.INTERNAL_SERVER_ERROR, message="An error occurred while inserting the patient.")
 
-        return item
+        return patient, HTTPStatus.CREATED

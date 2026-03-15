@@ -2,7 +2,7 @@ from flask_sqlalchemy import SQLAlchemy
 from models import db
 
 class PatientModel(db.Model):
-    __tablename__ = "staff"
+    __tablename__ = "patients"
 
     id = db.Column(db.Integer, primary_key=True)
     first_name = db.Column(db.String(30), unique=False, nullable=False)
@@ -19,6 +19,4 @@ class PatientModel(db.Model):
     emergency_contact_phone = db.Column(db.String(15), unique=False, nullable=False)
     crreated_at = db.Column(db.DateTime, unique=False, nullable=False)
     updated_at = db.Column(db.DateTime, unique=False, nullable=False)
-    username = db.Column(db.String(30), unique=True, nullable=False)
-    password = db.Column(db.String(50), unique=False, nullable=False)
     

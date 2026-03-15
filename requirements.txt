@@ -1,7 +1,10 @@
-flask
-flask-smorest
-python-dotenv
+Flask-JWT-Extended
+Flask-Smorest
+Flask-SQLAlchemy
+passlib
 marshmallow
-sqlalchemy
-flask-sqlalchemy
+python-dotenv
 pytest
+typing
+pyqt5
+requests

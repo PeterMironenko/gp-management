@@ -1,4 +1,3 @@
-from flask_sqlalchemy import SQLAlchemy
 from models import db
 
 
@@ -13,5 +12,6 @@ class StaffModel(db.Model):
     mobile_phone = db.Column(db.String(15), unique=True, nullable=False)
     work_email = db.Column(db.String(80), unique=True, nullable=False)
     position = db.Column(db.String(50), unique=False, nullable=False)
-    username = db.Column(db.String(30), unique=True, nullable=False)
-    password = db.Column(db.String(50), unique=False, nullable=False)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), unique=True, nullable=False)
+
+    user = db.relationship("UserModel", back_populates="staff")
