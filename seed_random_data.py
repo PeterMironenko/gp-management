@@ -8,6 +8,7 @@ from werkzeug.security import generate_password_hash
 
 from app import app, db, ensure_default_admin_user
 from models import (
+    AppointmentModel,
     DrugModel,
     LabRecordModel,
     MedicalInformationModel,
@@ -63,6 +64,14 @@ DRUG_CATALOG = [
 LAB_TEST_TYPES = ["Blood", "Urine", "Imaging", "Biochemistry"]
 LAB_TEST_NAMES = ["CBC", "Lipid Panel", "HbA1c", "Liver Function", "Urinalysis", "X-Ray Chest"]
 MED_ROUTES = ["Oral", "IV", "IM", "Topical"]
+APPOINTMENT_REASONS = [
+    "Routine check-up",
+    "Follow-up visit",
+    "Medication review",
+    "Blood pressure review",
+    "Diabetes monitoring",
+]
+APPOINTMENT_LOCATIONS = ["GP Room 1", "GP Room 2", "Nurse Station", "Telehealth"]
 
 
 def random_dob(min_age: int = 18, max_age: int = 80) -> date:
@@ -155,6 +164,40 @@ def create_related_medical_data(patient: PatientModel, staff: StaffModel, seed_i
         db.session.add(medication)
 
 
+def create_appointments_for_patient(patient: PatientModel, staff: StaffModel) -> None:
+    now = datetime.now()
+    appointment_count = random.randint(2, 4)
+
+    first_slot = now.replace(
+        hour=random.choice([9, 10, 11, 14, 15, 16]),
+        minute=random.choice([0, 15, 30, 45]),
+        second=0,
+        microsecond=0,
+    )
+
+    appointment_dates = [first_slot]
+    for _ in range(appointment_count - 1):
+        weeks_ahead = random.randint(1, 6)
+        days_offset = random.randint(0, 6)
+        hour = random.choice([9, 10, 11, 14, 15, 16])
+        minute = random.choice([0, 15, 30, 45])
+        appointment_dates.append(
+            first_slot + timedelta(weeks=weeks_ahead, days=days_offset, hours=hour - first_slot.hour, minutes=minute - first_slot.minute)
+        )
+
+    for appointment_date in sorted(appointment_dates):
+        appointment = AppointmentModel(
+            patient_id=patient.id,
+            staff_id=staff.id,
+            appointment_date=appointment_date,
+            duration_minutes=random.choice([15, 20, 30, 45]),
+            reason=random.choice(APPOINTMENT_REASONS),
+            notes=random.choice(["Patient to bring current medications.", "Review recent lab results.", "Routine assessment.", None]),
+            location=random.choice(APPOINTMENT_LOCATIONS),
+        )
+        db.session.add(appointment)
+
+
 def create_staff_and_patients(staff_count: int, patients_per_staff: int) -> None:
     positions = ensure_positions_seeded()
 
@@ -212,6 +255,7 @@ def create_staff_and_patients(staff_count: int, patients_per_staff: int) -> None
             db.session.add(patient)
             db.session.flush()
             create_related_medical_data(patient, staff, patient_counter)
+            create_appointments_for_patient(patient, staff)
             patient_counter += 1
 
     db.session.commit()
@@ -244,11 +288,13 @@ def main() -> None:
         labrecord_total = LabRecordModel.query.count()
         medicalinformation_total = MedicalInformationModel.query.count()
         medication_total = MedicationModel.query.count()
+        appointment_total = AppointmentModel.query.count()
         print(
             "Seeding complete: "
             f"staff={staff_total}, patients={patient_total}, "
             f"drugs={drug_total}, labrecords={labrecord_total}, "
-            f"medicalinformation={medicalinformation_total}, medications={medication_total}"
+            f"medicalinformation={medicalinformation_total}, medications={medication_total}, "
+            f"appointments={appointment_total}"
         )
 
 

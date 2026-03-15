@@ -447,6 +447,12 @@ class AdminWindow(QMainWindow):
         # Users list section
         list_label = QLabel("Existing Users:")
         main_layout.addWidget(list_label)
+
+        users_header = QLabel("ID    Username            First Name      Last Name       Position")
+        users_header_font = QFontDatabase.systemFont(QFontDatabase.FixedFont)
+        users_header_font.setBold(True)
+        users_header.setFont(users_header_font)
+        main_layout.addWidget(users_header)
         
         self.users_list = QListWidget()
         self.users_list.setFont(QFontDatabase.systemFont(QFontDatabase.FixedFont))
@@ -488,7 +494,7 @@ class AdminWindow(QMainWindow):
             last_name = staff.get("last_name") or "-"
             position = staff.get("position") or "-"
             item_text = (
-                f"ID:{str(user.get('id', '-')):>4}  "
+                f"{str(user.get('id', '-'))}  "
                 f"{fixed(user.get('username', '-'), 18)} "
                 f"{fixed(first_name, 14)} "
                 f"{fixed(last_name, 14)} "

@@ -14,7 +14,7 @@ from PyQt5.QtWidgets import (
 
 from apiclient import ApiClient
 from adminwindow import AdminWindow
-from patientwindow import PatientWindow
+from staffdashboardwindow import StaffDashboardWindow
 from config import ConfigManager
 
 class LoginDialog(QDialog):
@@ -163,7 +163,7 @@ def main() -> None:
     if api_client.is_admin:
         window = AdminWindow(api_client)
     else:
-        window = PatientWindow(api_client)
+        window = StaffDashboardWindow(api_client)
     window.show()
 
     sys.exit(app.exec_())

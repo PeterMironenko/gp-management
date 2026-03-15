@@ -2,11 +2,13 @@ import re
 from datetime import datetime
 from typing import List, Optional
 
-from PyQt5.QtCore import Qt, QLocale, QDate, QDateTime
+from PyQt5.QtCore import Qt, QLocale, QDate, QDateTime, QTime
 from PyQt5.QtGui import QFontDatabase, QIcon
 from PyQt5.QtWidgets import (
+    QDateEdit,
     QDialog,
     QGridLayout,
+    QHeaderView,
     QHBoxLayout,
     QLabel,
     QLineEdit,
@@ -16,6 +18,9 @@ from PyQt5.QtWidgets import (
     QMenu,
     QMessageBox,
     QPushButton,
+    QTableWidget,
+    QTableWidgetItem,
+    QTimeEdit,
     QVBoxLayout,
     QWidget,
 )
@@ -42,6 +47,14 @@ def _apply_create_icon(button: QPushButton) -> None:
         button.setIcon(create_icon)
     else:
         button.setText("+")
+
+
+def _create_list_header(text: str) -> QLabel:
+    label = QLabel(text)
+    font = QFontDatabase.systemFont(QFontDatabase.FixedFont)
+    font.setBold(True)
+    label.setFont(font)
+    return label
 
 
 def _iso_date_to_locale_text(value: str) -> str:
@@ -279,24 +292,38 @@ class AppointmentDialog(QDialog):
         self.payload: Optional[dict] = None
         appointment = appointment or {}
 
+        initial_datetime = QDateTime.currentDateTime()
+        appointment_raw = str(appointment.get("appointment_date", "") or "")
+        for fmt in ("yyyy-MM-ddTHH:mm:ss", "yyyy-MM-ddTHH:mm", "yyyy-MM-dd HH:mm:ss", "yyyy-MM-dd HH:mm"):
+            parsed = QDateTime.fromString(appointment_raw, fmt)
+            if parsed.isValid():
+                initial_datetime = parsed
+                break
+
         layout = QGridLayout()
-        self.appointment_date = QLineEdit(_iso_datetime_to_locale_text(appointment.get("appointment_date", "")))
-        self.appointment_date.setPlaceholderText(LOCALE_DATETIME_FORMAT)
+        self.appointment_date = QDateEdit()
+        self.appointment_date.setCalendarPopup(True)
+        self.appointment_date.setDate(initial_datetime.date())
+        self.appointment_time = QTimeEdit()
+        self.appointment_time.setDisplayFormat("HH:mm")
+        self.appointment_time.setTime(initial_datetime.time())
         self.duration_minutes = QLineEdit(str(appointment.get("duration_minutes", "")))
         self.reason = QLineEdit(appointment.get("reason", ""))
         self.notes = QLineEdit(appointment.get("notes", ""))
         self.location = QLineEdit(appointment.get("location", ""))
 
-        layout.addWidget(QLabel("Date & Time:"), 0, 0)
+        layout.addWidget(QLabel("Date:"), 0, 0)
         layout.addWidget(self.appointment_date, 0, 1)
-        layout.addWidget(QLabel("Duration (min):"), 1, 0)
-        layout.addWidget(self.duration_minutes, 1, 1)
-        layout.addWidget(QLabel("Reason:"), 2, 0)
-        layout.addWidget(self.reason, 2, 1)
-        layout.addWidget(QLabel("Notes:"), 3, 0)
-        layout.addWidget(self.notes, 3, 1)
-        layout.addWidget(QLabel("Location:"), 4, 0)
-        layout.addWidget(self.location, 4, 1)
+        layout.addWidget(QLabel("Time:"), 1, 0)
+        layout.addWidget(self.appointment_time, 1, 1)
+        layout.addWidget(QLabel("Duration (min):"), 2, 0)
+        layout.addWidget(self.duration_minutes, 2, 1)
+        layout.addWidget(QLabel("Reason:"), 3, 0)
+        layout.addWidget(self.reason, 3, 1)
+        layout.addWidget(QLabel("Notes:"), 4, 0)
+        layout.addWidget(self.notes, 4, 1)
+        layout.addWidget(QLabel("Location:"), 5, 0)
+        layout.addWidget(self.location, 5, 1)
 
         buttons = QHBoxLayout()
         save_btn = QPushButton("Save")
@@ -305,29 +332,25 @@ class AppointmentDialog(QDialog):
         cancel_btn.clicked.connect(self.reject)
         buttons.addWidget(save_btn)
         buttons.addWidget(cancel_btn)
-        layout.addLayout(buttons, 5, 0, 1, 2)
+        layout.addLayout(buttons, 6, 0, 1, 2)
 
         self.patient_id = patient_id
         self.staff_id = staff_id
         self.setLayout(layout)
 
     def _on_submit(self) -> None:
-        appointment_date = self.appointment_date.text().strip()
         duration_text = self.duration_minutes.text().strip()
         reason = self.reason.text().strip()
 
-        if not appointment_date or not duration_text or not reason:
+        if not duration_text or not reason:
             QMessageBox.warning(self, "Validation Error", "Date, duration and reason are required.")
             return
 
-        iso_datetime = _locale_or_iso_to_iso_datetime(appointment_date)
-        if iso_datetime is None:
-            QMessageBox.warning(
-                self,
-                "Validation Error",
-                f"Date & time must match locale format ({LOCALE_DATETIME_FORMAT}) or ISO datetime format.",
-            )
+        appointment_datetime = QDateTime(self.appointment_date.date(), self.appointment_time.time())
+        if not appointment_datetime.isValid():
+            QMessageBox.warning(self, "Validation Error", "Date and time must be valid.")
             return
+        iso_datetime = appointment_datetime.toString("yyyy-MM-ddTHH:mm:ss")
 
         if not duration_text.isdigit() or int(duration_text) <= 0:
             QMessageBox.warning(self, "Validation Error", "Duration must be a positive number of minutes.")
@@ -361,6 +384,7 @@ class AppointmentsWindow(QDialog):
             f"{patient.get('first_name', '-')} {patient.get('last_name', '-')}"
         )
         layout.addWidget(header)
+        layout.addWidget(_create_list_header("ID    Date & Time             Duration Reason                   Location"))
 
         self.appointments_list = QListWidget()
         self.appointments_list.setFont(QFontDatabase.systemFont(QFontDatabase.FixedFont))
@@ -421,7 +445,7 @@ class AppointmentsWindow(QDialog):
 
         for appointment in appointments:
             item_text = (
-                f"ID:{str(appointment.get('id', '-')):>4}  "
+                f"{str(appointment.get('id', '-'))}  "
                 f"{fixed(appointment.get('appointment_date', '-'), 22)} "
                 f"{fixed(str(appointment.get('duration_minutes', '-')), 8)} "
                 f"{fixed(appointment.get('reason', '-'), 24)} "
@@ -636,6 +660,7 @@ class LabRecordsWindow(QDialog):
             f"{patient.get('first_name', '-')} {patient.get('last_name', '-')}"
         )
         layout.addWidget(header)
+        layout.addWidget(_create_list_header("ID    Test Type      Test Name            Test Date              Result"))
 
         self.records_list = QListWidget()
         self.records_list.setFont(QFontDatabase.systemFont(QFontDatabase.FixedFont))
@@ -697,7 +722,7 @@ class LabRecordsWindow(QDialog):
 
         for record in records:
             item_text = (
-                f"ID:{str(record.get('id', '-')):>4}  "
+                f"{str(record.get('id', '-'))}  "
                 f"{fixed(record.get('test_type', '-'), 14)} "
                 f"{fixed(record.get('test_name', '-'), 20)} "
                 f"{fixed(record.get('test_date', '-'), 22)} "
@@ -922,6 +947,7 @@ class MedicalInformationWindow(QDialog):
             f"{patient.get('first_name', '-')} {patient.get('last_name', '-')}"
         )
         layout.addWidget(header)
+        layout.addWidget(_create_list_header("ID    Primary Condition       Allergies              Last Updated"))
 
         self.records_list = QListWidget()
         self.records_list.setFont(QFontDatabase.systemFont(QFontDatabase.FixedFont))
@@ -983,7 +1009,7 @@ class MedicalInformationWindow(QDialog):
 
         for record in records:
             item_text = (
-                f"ID:{str(record.get('id', '-')):>4}  "
+                f"{str(record.get('id', '-'))}  "
                 f"{fixed(record.get('primary_condition', '-'), 22)} "
                 f"{fixed(record.get('allergies', '-'), 22)} "
                 f"{fixed(record.get('last_updated', '-'), 22)}"
@@ -1226,6 +1252,7 @@ class MedicationsWindow(QDialog):
             f"{patient.get('first_name', '-')} {patient.get('last_name', '-')}"
         )
         layout.addWidget(header)
+        layout.addWidget(_create_list_header("ID    Dosage             Frequency          Start Date   End Date"))
 
         self.records_list = QListWidget()
         self.records_list.setFont(QFontDatabase.systemFont(QFontDatabase.FixedFont))
@@ -1287,7 +1314,7 @@ class MedicationsWindow(QDialog):
 
         for record in records:
             item_text = (
-                f"ID:{str(record.get('id', '-')):>4}  "
+                f"{str(record.get('id', '-'))}  "
                 f"{fixed(record.get('dosage', '-'), 18)} "
                 f"{fixed(record.get('frequency', '-'), 18)} "
                 f"{fixed(record.get('start_date', '-'), 12)} "
@@ -1425,12 +1452,22 @@ class PatientWindow(QMainWindow):
         top_controls.addWidget(filter_button)
         main_layout.addLayout(top_controls)
 
-        self.patient_list = QListWidget()
-        self.patient_list.setFont(QFontDatabase.systemFont(QFontDatabase.FixedFont))
-        self.patient_list.itemDoubleClicked.connect(lambda _item: self.open_update_dialog())
-        self.patient_list.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
-        self.patient_list.customContextMenuRequested.connect(self._open_context_menu)
-        main_layout.addWidget(self.patient_list)
+        self.patient_table = QTableWidget(0, 5)
+        self.patient_table.setHorizontalHeaderLabels(["ID", "First Name", "Last Name", "Mobile", "Email"])
+        self.patient_table.setEditTriggers(QTableWidget.NoEditTriggers)
+        self.patient_table.setSelectionBehavior(QTableWidget.SelectRows)
+        self.patient_table.setSelectionMode(QTableWidget.SingleSelection)
+        self.patient_table.verticalHeader().setVisible(False)
+        self.patient_table.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        self.patient_table.customContextMenuRequested.connect(self._open_context_menu)
+        self.patient_table.cellDoubleClicked.connect(lambda _row, _col: self.open_update_dialog())
+        header = self.patient_table.horizontalHeader()
+        header.setSectionResizeMode(0, QHeaderView.ResizeToContents)
+        header.setSectionResizeMode(1, QHeaderView.ResizeToContents)
+        header.setSectionResizeMode(2, QHeaderView.ResizeToContents)
+        header.setSectionResizeMode(3, QHeaderView.ResizeToContents)
+        header.setSectionResizeMode(4, QHeaderView.Stretch)
+        main_layout.addWidget(self.patient_table)
 
         main_widget.setLayout(main_layout)
         self.setCentralWidget(main_widget)
@@ -1456,38 +1493,44 @@ class PatientWindow(QMainWindow):
 
     def _render_patients(self, patients: List[dict]) -> None:
         self.patients = patients
-        self.patient_list.clear()
+        self.patient_table.clearContents()
+        self.patient_table.setRowCount(len(patients))
 
-        def fixed(value: str, width: int) -> str:
-            text = (value or "-").strip()
-            if len(text) > width:
-                return f"{text[: width - 1]}…"
-            return f"{text:<{width}}"
-
-        for patient in patients:
-            item_text = (
-                f"ID:{str(patient.get('id', '-')):>4}  "
-                f"{fixed(patient.get('first_name', '-'), 14)} "
-                f"{fixed(patient.get('last_name', '-'), 14)} "
-                f"{fixed(patient.get('mobile_phone', '-'), 14)} "
-                f"{fixed(patient.get('email', '-'), 24)}"
-            )
-            item = QListWidgetItem(item_text)
-            item.setData(Qt.ItemDataRole.UserRole, patient)
-            self.patient_list.addItem(item)
+        for row_index, patient in enumerate(patients):
+            values = [
+                str(patient.get("id", "-")),
+                str(patient.get("first_name", "-") or "-"),
+                str(patient.get("last_name", "-") or "-"),
+                str(patient.get("mobile_phone", "-") or "-"),
+                str(patient.get("email", "-") or "-"),
+            ]
+            for col_index, value in enumerate(values):
+                item = QTableWidgetItem(value)
+                item.setFlags(Qt.ItemIsSelectable | Qt.ItemIsEnabled)
+                if col_index == 0:
+                    item.setData(Qt.ItemDataRole.UserRole, patient)
+                self.patient_table.setItem(row_index, col_index, item)
 
     def _get_selected_patient(self) -> Optional[dict]:
-        item = self.patient_list.currentItem()
-        if not item:
+        row = self.patient_table.currentRow()
+        if row < 0:
             QMessageBox.warning(self, "Warning", "Please select a patient first.")
             return None
-        return item.data(Qt.ItemDataRole.UserRole)
+        item = self.patient_table.item(row, 0)
+        if item is None:
+            QMessageBox.warning(self, "Warning", "Selected patient row is invalid.")
+            return None
+        patient = item.data(Qt.ItemDataRole.UserRole)
+        if not isinstance(patient, dict):
+            QMessageBox.warning(self, "Warning", "Selected row does not contain a patient.")
+            return None
+        return patient
 
     def _open_context_menu(self, pos) -> None:
-        item = self.patient_list.itemAt(pos)
-        if item is None:
+        row = self.patient_table.indexAt(pos).row()
+        if row < 0:
             return
-        self.patient_list.setCurrentItem(item)
+        self.patient_table.setCurrentCell(row, 0)
 
         menu = QMenu(self)
         open_menu = QMenu("Open", menu)
@@ -1498,7 +1541,7 @@ class PatientWindow(QMainWindow):
         medications_action = open_menu.addAction("Medications")
         menu.addSeparator()
         delete_action = menu.addAction("Delete")
-        selected_action = menu.exec_(self.patient_list.mapToGlobal(pos))
+        selected_action = menu.exec_(self.patient_table.viewport().mapToGlobal(pos))
         if selected_action == appointments_action:
             self.open_appointments_window()
         elif selected_action == labrecords_action:
